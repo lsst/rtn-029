@@ -50,6 +50,169 @@
 
    We describe the procedure we followed at FrDF for creating a butler repository from scratch for performing data release processing for the needs of Data Preview 0.2. We include the butler commands used, the scripts which use the butler's Python API as well as the details on the input datasets used for creating the repository.
 
+Introduction
+============
+
+In this note we document the required datasets and the procedure for creating a butler repository from scratch for performing data release processing for Data Preview 0.2. We followed this procedure to create the repository at the Rubin French Data Facility.
+
+The details are adapted from `PREOPS-711 <https://jira.lsstcorp.org/browse/PREOPS-711>`__.
+
+Input Datasets
+==============
+
+For creating this repository we used four kinds of datasets:
+
+- raw images
+- calibrations
+- reference catalogs
+- skyMap
+
+In the subsections below we document the source of each of those datasets and the transformations we applied to them specifically for creating the repository, if any.
+
+Raw images
+----------
+
+For Data Preview 0.2 we will use a subset of the simulated raw images produced by the Dark Energy Science Collaboration, DESC DC2 [TODO: ref RTN-001]. Specifically, we will use the subset known as WFD, composed of 19,852 visits, one exposure per visit. The visit identifiers of the WFD field were obtained from `DR6_Run2.2i_WFD_visits.txt <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/data/dc2/DR6_Run2.2i_WFD_visits.txt>`__.
+
+The simulated images are stored at FrDF under path
+
+.. code-block:: none
+   
+   /sps/lsst/datasets/rubin/previews/dp0.2/raw
+
+and are organized by year subdirectory (named ``y1-wfd`` to ``y5-wfd``), as the original DESC DC2 simulated raw dataset. Within a given year there is a subdirectory per visit, which contains all the files beloging to that visit, typically one ``.fits`` file per sensor, e.g:
+
+.. code-block:: bash
+
+    $ tree -L 1 /sps/lsst/datasets/rubin/previews/dp0.2/raw/y1-wfd/00261426
+    /sps/lsst/datasets/rubin/previews/dp0.2/raw/y1-wfd/00261426
+    |-- _index.json
+    |-- lsst_a_261426_R03_S02_r.fits
+    |-- lsst_a_261426_R03_S11_r.fits
+    |-- lsst_a_261426_R03_S12_r.fits
+    ...
+
+There is one file named ``_index.json`` associated to each visit. Each of those index files contains metadata extracted from all the sensor files of the same visit. When ingesting the raw images, the ``butler ingest-raws`` command looks for index files and if present extracts from them the relevant information to populate the registry database without actually reading the ``.fits`` files themselves, which can help to speed up ingestion of raw images.
+
+Those index files can be generated via the `astro_metadata_translator <https://astro-metadata-translator.lsst.io>`__ package, which is included in the LSST Science Pipelines distribution. We used weekly **w_2021_42** for generating those indexes, via a command similar to:
+
+.. code-block:: bash
+
+    $ astrometadata --packages lsst.obs.lsst write-index --content metadata /sps/lsst/datasets/rubin/previews/dp0.2/raw
+
+The generated index files can be reused at any facility ingesting the same raw images. You can download them at https://me.lsst.eu/lsstdata/dp02_raw_wfd_indexes.tar.gz (1.5 GB)
+
+Calibration data
+----------------
+
+Calibration data was extracted from an existing butler repository at NCSA using the command below (weekly **w_2021_42**):
+
+.. code-block:: bash
+
+    $ # Executed at NCSA
+    $ butler export-calibs /repo/dc2 gen3-repo-calibs 2.2i/calib
+
+Note however that for this command to work the `default datastore template <https://github.com/lsst/daf_butler/blob/ac63b1862508ff15b39a6f6be096f4af46b21807/python/lsst/daf/butler/configs/datastores/fileDatastore.yaml#L8>`__ was modified to replace ``detector.full_name`` by ``detector``. The resulting calibration data is available at FrDF under
+
+.. code-block:: none
+   
+   /sps/lsst/datasets/rubin/previews/dp0.2/calib
+
+Reference catalogs
+------------------
+
+We used the same reference catalogs that were used for processing the DESC DC2 data with release **v19.0.0** of the LSST science pipelines. Those original catalogs are located at FrDF and organized as follows
+
+.. code-block:: none
+   
+  $ tree -L 1 /sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat
+  /sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat
+  |-- 141440.fits
+  |-- 141443.fits
+  |-- 141825.fits
+  ...
+
+To prepare the data for ingestion into the new repository we used the Python script below to generate file ``refcat.ecsv`` which is needed when ingesting the catalogs:
+
+.. code-block:: python
+
+    import os
+    import re
+    from astropy.table import Table
+     
+    refcatdir = '/sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat'
+    pattern = re.compile("[0-9]{6}\.fits")
+    rows = []
+     
+    for file in os.listdir(refcatdir):
+        if pattern.match(file):
+            filepath = os.path.join(refcatdir, file)
+            filename = os.path.splitext(file)[0]
+            rows.append((filepath, int(filename)))
+    
+    t = Table(rows=rows, names=['filename', 'htm7'])
+    t.write('refcat.ecsv')
+
+An excerpt of the generated file ``refcat.ecsv`` is shown below:
+
+.. code-block:: none
+
+    $ head -10 refcat.ecsv 
+    # %ECSV 1.0
+    # ---
+    # datatype:
+    # - {name: filename, datatype: string}
+    # - {name: htm7, datatype: int64}
+    # schema: astropy-2.0
+    filename htm7
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146812.fits 146812
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
+    ...
+
+The contents of the 1,213 ``.fits`` reference catalog files and the file  ``refcat.ecsv`` were then copied under:
+
+.. code-block:: none
+
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats
+
+skyMap
+------
+
+The configuration file for the ``skyMap`` was copied unmodified from `DC2.py <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/config/skymaps/DC2.py>`__ and stored under:
+
+
+.. code-block:: none
+
+    /sps/lsst/datasets/rubin/previews/dp0.2/skymaps
+
+Input datasets organization
+----------------------------
+
+The four datasets prepared in the steps described above are organized as follows:
+
+.. code-block:: none
+
+    $ tree -L 1 /sps/lsst/datasets/rubin/previews/dp0.2
+    /sps/lsst/datasets/rubin/previews/dp0.2
+    |-- calib
+    |-- raw
+    |-- refcats
+    `-- skymaps
+
+
+Creating the repository
+=======================
+
+In this section we present the step-by-step procedure for creating the repository. 
+
+
+
+Creating collections
+====================
+
+This is how we created collections
+
 .. Add content here.
 .. Do not include the document title (it's automatically added from metadata.yaml).
 
