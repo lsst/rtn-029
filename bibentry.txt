@@ -1,0 +1,9 @@
+% bibentry template for lsst.bib in https://github.com/lsst/lsst-texmf/blob/main/texmf/bibtex/bib/lsst.bib
+
+@DocuShare{RTN-029,
+   author = { Fabio Hernandez },
+    title = {Procedure for creating a butler repository from scratch for performing data release processing for Data Preview 0.2 at FrDF},
+     year = 2021,
+    month = Dec,
+   handle = {RTN-029},
+      url = {https://rtn-029.lsst.io } }
