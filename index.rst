@@ -53,9 +53,9 @@
 Introduction
 ============
 
-In this note we document the required datasets and the procedure for creating a butler repository from scratch for performing data release processing for Data Preview 0.2. We followed this procedure to create the repository at the Rubin French Data Facility.
+In this note we document the required input datasets and the procedure we followed at the Rubin French Data Facility (FrDF) for creating a butler repository for performing data release processing for the needs of Data Preview 0.2 :cite:`RTN-001`. We include the butler commands we used, the scripts which use the butler's Python API as well as the details on the datasets used for populating the repository.
 
-The details are adapted from `PREOPS-711 <https://jira.lsstcorp.org/browse/PREOPS-711>`__.
+The details for preparing this note are extracted from `PREOPS-711 <https://jira.lsstcorp.org/browse/PREOPS-711>`__.
 
 Input Datasets
 ==============
@@ -72,7 +72,7 @@ In the subsections below we document the source of each of those datasets and th
 Raw images
 ----------
 
-For Data Preview 0.2 [TODO: ref RTN-001] we use a subset of the simulated raw images produced by the Dark Energy Science Collaboration, DESC DC2 [TODO: ref DESC-DC2]. Specifically, we use the subset known as WFD, composed of 19,852 visits, one exposure per visit. The visit identifiers of were obtained from `DR6_Run2.2i_WFD_visits.txt <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/data/dc2/DR6_Run2.2i_WFD_visits.txt>`__.
+For Data Preview 0.2 we use a subset of the simulated raw images produced by the Dark Energy Science Collaboration (DESC) Data Challenge 2 :cite:`2021ApJS..253...31L`. Specifically, we use the subset known as WFD, composed of 19,852 visits, one exposure per visit. The visit identifiers of were obtained from `DR6_Run2.2i_WFD_visits.txt <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/data/dc2/DR6_Run2.2i_WFD_visits.txt>`__.
 
 The simulated images are stored at FrDF under path
 
@@ -137,47 +137,54 @@ The resulting calibration data is organized at FrDF as follows:
     │               └── sky/
     └── export.yaml
 
+An archive of the calibration data is available at https://me.lsst.eu/lsstdata/dp02_calib.tar.gz (136 GB)
 
 Reference catalogs
 ------------------
 
-For DP0.2, we use same reference catalogs that were used for processing the DESC DC2 data with release **v19.0.0** of the LSST science pipelines. Those original catalogs are located at FrDF and organized as follows
+For DP0.2, we use same reference catalogs that were used for processing the DESC DC2 data. Those catalogs are located at FrDF and organized as follows
 
 .. code-block:: none
    
-  $ tree -L 1 /sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat
-  /sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat
-  |-- 141440.fits
-  |-- 141443.fits
-  |-- 141825.fits
-  ...
+    $ tree -L 1 /sps/lsst/datasets/desc/DC2/reference_catalogs/Run2.2i/cal_ref_cat
+    /sps/lsst/datasets/desc/DC2/reference_catalogs/Run2.2i/cal_ref_cat
+    |-- 141440.fits
+    |-- 141443.fits
+    |-- 141825.fits
+    ...
 
-To prepare the data for ingestion into the new repository we used the Python script below to generate the file ``refcat.ecsv`` which is needed when ingesting the catalogs:
+There are 1,213 files which are copied under 
+
+.. code-block:: none
+
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat
+
+To generate a table associating each file path of the reference catalog and its dimension, we use the script below:
 
 .. code-block:: python
 
     import os
     import re
     from astropy.table import Table
-     
-    refcatdir = '/sps/lsst/dataproducts/desc/DC2/Run2.2i/v19.0.0-v1/ref_cats/cal_ref_cat'
+         
+    refcat_dir = '/sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat'
+
     pattern = re.compile("[0-9]{6}\.fits")
     rows = []
-     
-    for file in os.listdir(refcatdir):
-        if pattern.match(file):
-            filepath = os.path.join(refcatdir, file)
-            filename = os.path.splitext(file)[0]
-            rows.append((filepath, int(filename)))
-    
-    t = Table(rows=rows, names=['filename', 'htm7'])
-    t.write('refcat.ecsv')
+    for file in os.listdir(refcat_dir):
+       if pattern.match(file):
+          filename = os.path.splitext(file)[0]
+          filepath = os.path.join(refcat_dir, file)
+          rows.append( (filepath, int(filename)) )
+        
+    table = Table(rows=rows, names=['filename', 'htm7'])
+    table.write(os.path.join(os.path.dirname(refcat_dir), 'refcat.ecsv'))
 
-An excerpt of the generated file ``refcat.ecsv`` is shown below:
+This script creates the file ``refcat.ecsv`` which is used when ingesting the catalog. An excerpt of its contents is shown below:
 
 .. code-block:: none
 
-    $ head -10 refcat.ecsv 
+    $ head -10 /sps/lsst/datasets/rubin/previews/dp0.2/refcats/refcat.ecsv
     # %ECSV 1.0
     # ---
     # datatype:
@@ -185,19 +192,21 @@ An excerpt of the generated file ``refcat.ecsv`` is shown below:
     # - {name: htm7, datatype: int64}
     # schema: astropy-2.0
     filename htm7
-    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146812.fits 146812
-    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
-    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
-    ...
+    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146812.fits 146812
+    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
+    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
 
-The contents of the 1,213 reference catalog ``.fits`` files and the file  ``refcat.ecsv`` were then copied under:
+The reference catalogs data is organized at FrDF as follows:
 
 .. code-block:: bash
 
-    $ tree -L 1 -F /sps/lsst/datasets/rubin/previews/dp0.2/refcats 
+    $ tree -L 1 -F /sps/lsst/datasets/rubin/previews/dp0.2/refcats
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats
     ├── cal_ref_cat/
     └── refcat.ecsv
+
+Archives of the 1,213 ``.fits`` files and of ``refcat.ecsv`` are available at https://me.lsst.eu/lsstdata/dp02_refcat.tar.gz (1.8 GB) and
+at https://me.lsst.eu/lsstdata/dp02_refcat.ecsv.tar.gz (7.8 KB), respectively.
 
 skyMap
 ------
@@ -211,8 +220,8 @@ The sky map configuration file was copied unmodified from `DC2.py <https://githu
     └── DC2.py
 
 
-Input datasets organization
-----------------------------
+Input datasets layout
+---------------------
 
 The four datasets prepared in the previous steps are organized as follows:
 
@@ -366,5 +375,5 @@ We create a chained collection with the Python code below:
 
 .. Make in-text citations with: :cite:`bibkey`.
 
-.. .. bibliography:: local.bib lsstbib/books.bib lsstbib/lsst.bib lsstbib/lsst-dm.bib lsstbib/refs.bib lsstbib/refs_ads.bib
-..    :style: lsst_aa
+.. bibliography:: local.bib lsstbib/books.bib lsstbib/lsst.bib lsstbib/lsst-dm.bib lsstbib/refs.bib lsstbib/refs_ads.bib
+   :style: lsst_aa
