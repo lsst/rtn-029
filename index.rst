@@ -371,7 +371,7 @@ We create a chained collection with the Python code below:
 .. Add content here.
 .. Do not include the document title (it's automatically added from metadata.yaml).
 
-.. .. rubric:: References
+.. rubric:: References
 
 .. Make in-text citations with: :cite:`bibkey`.
 
