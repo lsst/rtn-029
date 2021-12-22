@@ -72,7 +72,7 @@ In the subsections below we document the source of each of those datasets and th
 Raw images
 ----------
 
-For Data Preview 0.2 we will use a subset of the simulated raw images produced by the Dark Energy Science Collaboration, DESC DC2 [TODO: ref RTN-001]. Specifically, we will use the subset known as WFD, composed of 19,852 visits, one exposure per visit. The visit identifiers of the WFD field were obtained from `DR6_Run2.2i_WFD_visits.txt <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/data/dc2/DR6_Run2.2i_WFD_visits.txt>`__.
+For Data Preview 0.2 [TODO: ref RTN-001] we use a subset of the simulated raw images produced by the Dark Energy Science Collaboration, DESC DC2 [TODO: ref DESC-DC2]. Specifically, we use the subset known as WFD, composed of 19,852 visits, one exposure per visit. The visit identifiers of were obtained from `DR6_Run2.2i_WFD_visits.txt <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/data/dc2/DR6_Run2.2i_WFD_visits.txt>`__.
 
 The simulated images are stored at FrDF under path
 
@@ -92,7 +92,7 @@ and are organized by year subdirectory (named ``y1-wfd`` to ``y5-wfd``), as the 
     |-- lsst_a_261426_R03_S12_r.fits
     ...
 
-There is one file named ``_index.json`` associated to each visit. Each of those index files contains metadata extracted from all the sensor files of the same visit. When ingesting the raw images, the ``butler ingest-raws`` command looks for index files and if present extracts from them the relevant information to populate the registry database without actually reading the ``.fits`` files themselves, which can help to speed up ingestion of raw images.
+There is one file named ``_index.json`` associated to each visit. Each of those index files contains metadata extracted from all the sensor files of the same visit. When ingesting the raw images, the ``butler ingest-raws`` command looks for index files and if present extracts from them the relevant information to populate the registry database without actually reading the ``.fits`` files themselves, which can help to speed up (re)ingestion of raw images.
 
 Those index files can be generated via the `astro_metadata_translator <https://astro-metadata-translator.lsst.io>`__ package, which is included in the LSST Science Pipelines distribution. We used weekly **w_2021_42** for generating those indexes, via a command similar to:
 
@@ -105,23 +105,43 @@ The generated index files can be reused at any facility ingesting the same raw i
 Calibration data
 ----------------
 
-Calibration data was extracted from an existing butler repository at NCSA using the command below (weekly **w_2021_42**):
+Calibration data was extracted from an existing butler repository located under ``/repo/dc2`` at NCSA, using the command below (weekly **w_2021_42**):
 
 .. code-block:: bash
 
-    $ # Executed at NCSA
+    # Executed at NCSA
     $ butler export-calibs /repo/dc2 gen3-repo-calibs 2.2i/calib
 
-Note however that for this command to work the `default datastore template <https://github.com/lsst/daf_butler/blob/ac63b1862508ff15b39a6f6be096f4af46b21807/python/lsst/daf/butler/configs/datastores/fileDatastore.yaml#L8>`__ was modified to replace ``detector.full_name`` by ``detector``. The resulting calibration data is available at FrDF under
+Note however that for this command to work the `default datastore template <https://github.com/lsst/daf_butler/blob/ac63b1862508ff15b39a6f6be096f4af46b21807/python/lsst/daf/butler/configs/datastores/fileDatastore.yaml#L8>`__ was modified to replace ``detector.full_name`` by ``detector``. 
 
-.. code-block:: none
+The resulting calibration data is organized at FrDF as follows:
+
+.. code-block:: bash
    
-   /sps/lsst/datasets/rubin/previews/dp0.2/calib
+    $ tree -L 5 -F /sps/lsst/datasets/rubin/previews/dp0.2/calib
+    /sps/lsst/datasets/rubin/previews/dp0.2/calib
+    ├── 2.2i/
+    │   └── calib/
+    │       ├── DM-30694/
+    │       │   ├── curated/
+    │       │   │   └── 19700101T000000Z/
+    │       │   └── unbounded/
+    │       │       └── camera/
+    │       └── gen2/
+    │           ├── 20220101T000000Z/
+    │           │   ├── bias/
+    │           │   └── dark/
+    │           ├── 20220806T000000Z/
+    │           │   └── flat/
+    │           └── 20231201T000000Z/
+    │               └── sky/
+    └── export.yaml
+
 
 Reference catalogs
 ------------------
 
-We used the same reference catalogs that were used for processing the DESC DC2 data with release **v19.0.0** of the LSST science pipelines. Those original catalogs are located at FrDF and organized as follows
+For DP0.2, we use same reference catalogs that were used for processing the DESC DC2 data with release **v19.0.0** of the LSST science pipelines. Those original catalogs are located at FrDF and organized as follows
 
 .. code-block:: none
    
@@ -132,7 +152,7 @@ We used the same reference catalogs that were used for processing the DESC DC2 d
   |-- 141825.fits
   ...
 
-To prepare the data for ingestion into the new repository we used the Python script below to generate file ``refcat.ecsv`` which is needed when ingesting the catalogs:
+To prepare the data for ingestion into the new repository we used the Python script below to generate the file ``refcat.ecsv`` which is needed when ingesting the catalogs:
 
 .. code-block:: python
 
@@ -170,48 +190,174 @@ An excerpt of the generated file ``refcat.ecsv`` is shown below:
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
     ...
 
-The contents of the 1,213 ``.fits`` reference catalog files and the file  ``refcat.ecsv`` were then copied under:
+The contents of the 1,213 reference catalog ``.fits`` files and the file  ``refcat.ecsv`` were then copied under:
 
-.. code-block:: none
+.. code-block:: bash
 
+    $ tree -L 1 -F /sps/lsst/datasets/rubin/previews/dp0.2/refcats 
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats
+    ├── cal_ref_cat/
+    └── refcat.ecsv
 
 skyMap
 ------
 
-The configuration file for the ``skyMap`` was copied unmodified from `DC2.py <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/config/skymaps/DC2.py>`__ and stored under:
+The sky map configuration file was copied unmodified from `DC2.py <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/config/skymaps/DC2.py>`__ and stored under:
 
+.. code-block:: bash
 
-.. code-block:: none
-
+    $ tree -F /sps/lsst/datasets/rubin/previews/dp0.2/skymaps
     /sps/lsst/datasets/rubin/previews/dp0.2/skymaps
+    └── DC2.py
+
 
 Input datasets organization
 ----------------------------
 
-The four datasets prepared in the steps described above are organized as follows:
+The four datasets prepared in the previous steps are organized as follows:
 
-.. code-block:: none
+.. code-block:: bash
 
-    $ tree -L 1 /sps/lsst/datasets/rubin/previews/dp0.2
+    $ tree -L 1 -F /sps/lsst/datasets/rubin/previews/dp0.2
     /sps/lsst/datasets/rubin/previews/dp0.2
-    |-- calib
-    |-- raw
-    |-- refcats
-    `-- skymaps
-
+    ├── calib/
+    ├── raw/
+    ├── refcats/
+    └── skymaps/
 
 Creating the repository
 =======================
 
-In this section we present the step-by-step procedure for creating the repository. 
+In this section we present the step-by-step procedure we used for creating the repository using release **v23.0.0**.
+
+For simplicity, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values as shown below:
+
+.. prompt:: bash
+
+    export DP02_TOP='/sps/lsst/datasets/rubin/previews/dp0.2'
+    export DP02_CALIB="$DP02_TOP/calib"
+    export DP02_RAW="$DP02_TOP/raw"
+    export DP02_REFCATS="$DP02_TOP/refcats"
+    export DP02_SKYMAP="$DP02_TOP/skymaps"
 
 
+Create an empty repository
+--------------------------
+
+.. prompt:: bash
+
+    butler create --seed-config butler-dp02.yaml --override $REPO
+
+The contents of the butler seed configuration file ``butler-dp02.yaml`` to configure the butler to use a PostgreSQL registry database and a file-based data store is similar to:
+
+.. code-block:: bash
+
+    $ cat butler-dp02.yaml
+    datastore:
+      cls: lsst.daf.butler.datastores.fileDatastore.FileDatastore
+      root: /path/to/my/repo
+    registry:
+      db: postgresql://user@host:1234/databasename
+
+.. todo::
+  
+    Check that this is the minimal initial configuration we need for the repo
+
+Register instruments
+--------------------
+
+To register the instruments for this repository we use:
+
+.. prompt:: bash
+
+    butler register-instrument $REPO lsst.obs.lsst.LsstCamImSim
+    butler register-instrument $REPO lsst.obs.lsst.LsstCamPhoSim
+
+.. todo::
+  
+    Confirm that it is necessary to register instrument ``LsstCamPhoSim``
+
+Import calibration data
+-----------------------
+
+.. prompt:: bash
+
+    butler import --export-file "$DP02_CALIB/export.yaml" $REPO $DP02_CALIB
+
+Add instrument's curated calibrations
+-------------------------------------
+
+.. prompt:: bash
+
+    butler write-curated-calibrations $REPO 'LSSTCam-imSim'
+
+Register sky map
+----------------
+
+.. prompt:: bash
+
+    butler register-skymap -C "$DP02_SKYMAP/DC2.py" $REPO
+
+Ingest reference catalog data
+-----------------------------
+
+Register and ingest reference catalogs data:
+
+.. code-block:: bash
+
+    # Register reference catalog data with dataset type 'cal_ref_cat_2_2',
+    # storage class 'SimpleCatalog' and dimensions 'htm7'
+    $ butler register-dataset-type $REPO cal_ref_cat_2_2 SimpleCatalog htm7
+
+    # Ingest dataset of type 'cal_ref_cat_2_2' into run 'refcats' using information
+    # (e.g. paths, dimensions) present in table "$DP02_REFCATS/refcat.ecsv"
+    $ butler ingest-files $REPO cal_ref_cat_2_2 refcats "$DP02_REFCATS/refcat.ecsv"
+
+Ingest raw exposures
+--------------------
+
+.. prompt:: bash
+    
+    butler ingest-raws --transfer direct $REPO $DP0_RAW/y{1..5}-wfd
+
+Note that there are many ways to parallelize ingestion of raws, for instance ingesting per year and by specifying the number of processes to use for each ingestion command, such as:
+
+.. prompt:: bash
+    
+    butler ingest-raws --transfer direct -j 16 $REPO $DP0_RAW/y1-wfd
+
+At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying the raw data to the repository location.
+
+Define visits
+-------------
+
+Define visits from the exposures already present in the repository in collection ``LSSTCam-imSim/raw/all`` for instrument ``LSSTCam-imSim``:
+
+.. prompt:: bash
+    
+    butler define-visits --collections 'LSSTCam-imSim/raw/all' $REPO 'LSSTCam-imSim'
 
 Creating collections
-====================
+--------------------
 
-This is how we created collections
+We create a chained collection with the Python code below:
+
+.. code-block:: python
+
+    #!/usr/bin/env python
+    import os
+    from lsst.daf.butler import Butler, CollectionType
+
+    butler = Butler(os.getenv('REPO'), writeable='True')
+    butler.registry.registerCollection(name='2.2i/defaults', type=CollectionType.CHAINED)
+
+    children = ['LSSTCam-imSim/raw/all', '2.2i/calib', 'skymaps', 'refcats']
+    butler.registry.setCollectionChain(parent='2.2i/defaults', children=children)
+
+.. todo::
+  
+    Add a sentence on why creating this chain is needed / desirable / convenient
+
 
 .. Add content here.
 .. Do not include the document title (it's automatically added from metadata.yaml).
