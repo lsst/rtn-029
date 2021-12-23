@@ -153,48 +153,11 @@ For DP0.2, we use same reference catalogs that were used for processing the DESC
     |-- 141825.fits
     ...
 
-There are 1,213 files which are copied under 
+There are 1,213 ``.fits`` files which we copied under 
 
 .. code-block:: none
 
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat
-
-To generate a table associating each file path of the reference catalog and its dimension, we use the script below:
-
-.. code-block:: python
-
-    import os
-    import re
-    from astropy.table import Table
-         
-    refcat_dir = '/sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat'
-
-    pattern = re.compile("[0-9]{6}\.fits")
-    rows = []
-    for file in os.listdir(refcat_dir):
-       if pattern.match(file):
-          filename = os.path.splitext(file)[0]
-          filepath = os.path.join(refcat_dir, file)
-          rows.append( (filepath, int(filename)) )
-        
-    table = Table(rows=rows, names=['filename', 'htm7'])
-    table.write(os.path.join(os.path.dirname(refcat_dir), 'refcat.ecsv'))
-
-This script creates the file ``refcat.ecsv`` which is used when ingesting the catalog. An excerpt of its contents is shown below:
-
-.. code-block:: none
-
-    $ head -10 /sps/lsst/datasets/rubin/previews/dp0.2/refcats/refcat.ecsv
-    # %ECSV 1.0
-    # ---
-    # datatype:
-    # - {name: filename, datatype: string}
-    # - {name: htm7, datatype: int64}
-    # schema: astropy-2.0
-    filename htm7
-    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146812.fits 146812
-    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
-    /sps/lsstcest/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
 
 The reference catalogs data is organized at FrDF as follows:
 
@@ -205,8 +168,7 @@ The reference catalogs data is organized at FrDF as follows:
     ├── cal_ref_cat/
     └── refcat.ecsv
 
-Archives of the 1,213 ``.fits`` files and of ``refcat.ecsv`` are available at https://me.lsst.eu/lsstdata/dp02_refcat.tar.gz (1.8 GB) and
-at https://me.lsst.eu/lsstdata/dp02_refcat.ecsv.tar.gz (7.8 KB), respectively.
+An archive file containing the ``.fits`` files are available at https://me.lsst.eu/lsstdata/dp02_refcat.tar.gz (1.8 GB).
 
 skyMap
 ------
@@ -237,9 +199,9 @@ The four datasets prepared in the previous steps are organized as follows:
 Creating the repository
 =======================
 
-In this section we present the step-by-step procedure we used for creating the repository using release **v23.0.0**.
+In this section we present the step-by-step procedure we use for creating the repository using release **v23.0.0**.
 
-For simplicity, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values as shown below:
+For conciseness, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values shown below:
 
 .. prompt:: bash
 
@@ -257,34 +219,15 @@ Create an empty repository
 
     butler create --seed-config butler-dp02.yaml --override $REPO
 
-The contents of the butler seed configuration file ``butler-dp02.yaml`` to configure the butler to use a PostgreSQL registry database and a file-based data store is similar to:
+To configure the butler to use a file-based data store and a PostgreSQL registry database we use a seed configuration file ``butler-dp02.yaml``  similar to:
 
 .. code-block:: bash
 
     $ cat butler-dp02.yaml
     datastore:
       cls: lsst.daf.butler.datastores.fileDatastore.FileDatastore
-      root: /path/to/my/repo
     registry:
       db: postgresql://user@host:1234/databasename
-
-.. todo::
-  
-    Check that this is the minimal initial configuration we need for the repo
-
-Register instruments
---------------------
-
-To register the instruments for this repository we use:
-
-.. prompt:: bash
-
-    butler register-instrument $REPO lsst.obs.lsst.LsstCamImSim
-    butler register-instrument $REPO lsst.obs.lsst.LsstCamPhoSim
-
-.. todo::
-  
-    Confirm that it is necessary to register instrument ``LsstCamPhoSim``
 
 Import calibration data
 -----------------------
@@ -292,6 +235,28 @@ Import calibration data
 .. prompt:: bash
 
     butler import --export-file "$DP02_CALIB/export.yaml" $REPO $DP02_CALIB
+
+For this repository, importing calibration data needs to be performed before registering instruments (see below), otherwise an error is produced.
+
+Register instrument
+-------------------
+
+To register the instrument for this repository we use:
+
+.. prompt:: bash
+
+    butler register-instrument $REPO lsst.obs.lsst.LsstCamImSim
+
+.. todo::
+  
+    Do we also need to register instrument ``lsst.obs.lsst.LsstCamPhoSim`` ? If we don't register it and we import calibration data *after* registering only ``lsst.obs.lsst.LsstCamImSim`` we get the error below:
+
+    .. code-block:: bash
+
+       sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: instrument.name
+       [SQL: INSERT INTO instrument (name, visit_max, exposure_max, detector_max, class_name) VALUES (?, ?, ?, ?, ?)]
+       [parameters: ('LSSTCam-imSim', 9999999, 9999999, 1000, 'lsst.obs.lsst.LsstCamImSim')]
+       (Background on this error at: https://sqlalche.me/e/14/gkpj)
 
 Add instrument's curated calibrations
 -------------------------------------
@@ -310,6 +275,45 @@ Register sky map
 Ingest reference catalog data
 -----------------------------
 
+Ingestion of reference catalogs requires that an `Astropy table <https://docs.astropy.org/en/stable/api/astropy.table.Table.html>`__ associating each file path of the reference catalog and its dimension be provided. We use the script below to create that table and store it in file ``refcat.ecsv``.
+
+.. code-block:: python
+
+    import os
+    import re
+    from astropy.table import Table
+         
+    refcat_dir = '/sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat'
+
+    pattern = re.compile(r'[0-9]{6}.fits')
+    rows = []
+    for file in os.listdir(refcat_dir):
+       if pattern.match(file):
+          filename = os.path.splitext(file)[0]
+          filepath = os.path.join(refcat_dir, file)
+          rows.append( (filepath, int(filename)) )
+        
+    table = Table(rows=rows, names=['filename', 'htm7'])
+    table.write('refcat.ecsv')
+
+An excerpt of the contents of the generated table file is shown below:
+
+.. code-block:: none
+
+    $ head -10 refcat.ecsv 
+    # %ECSV 1.0
+    # ---
+    # datatype:
+    # - {name: filename, datatype: string}
+    # - {name: htm7, datatype: int64}
+    # schema: astropy-2.0
+    filename htm7
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146812.fits 146812
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
+    /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
+
+The generated table file is available at https://me.lsst.eu/lsstdata/dp02_refcat.ecsv.tar.gz (7.8 KB).
+
 Register and ingest reference catalogs data:
 
 .. code-block:: bash
@@ -319,8 +323,8 @@ Register and ingest reference catalogs data:
     $ butler register-dataset-type $REPO cal_ref_cat_2_2 SimpleCatalog htm7
 
     # Ingest dataset of type 'cal_ref_cat_2_2' into run 'refcats' using information
-    # (e.g. paths, dimensions) present in table "$DP02_REFCATS/refcat.ecsv"
-    $ butler ingest-files $REPO cal_ref_cat_2_2 refcats "$DP02_REFCATS/refcat.ecsv"
+    # (e.g. paths, dimensions) present in table 'refcat.ecsv'
+    $ butler ingest-files --transfer direct $REPO cal_ref_cat_2_2 refcats refcat.ecsv
 
 Ingest raw exposures
 --------------------
@@ -329,13 +333,13 @@ Ingest raw exposures
     
     butler ingest-raws --transfer direct $REPO $DP0_RAW/y{1..5}-wfd
 
-Note that there are many ways to parallelize ingestion of raws, for instance ingesting per year and by specifying the number of processes to use for each ingestion command, such as:
+Note that there are many ways to perform the ingestion of raws concurrently, for instance launching an ingestion command per year and by specifying the number of processes to use for each command, such as:
 
 .. prompt:: bash
     
     butler ingest-raws --transfer direct -j 16 $REPO $DP0_RAW/y1-wfd
 
-At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying the raw data to the repository location.
+At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying raw exposure data to the repository location.
 
 Define visits
 -------------
