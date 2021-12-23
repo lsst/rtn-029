@@ -359,13 +359,18 @@ We create a chained collection with the Python code below:
 
     #!/usr/bin/env python
     import os
+    import sys
     from lsst.daf.butler import Butler, CollectionType
 
-    butler = Butler(os.getenv('REPO'), writeable='True')
-    butler.registry.registerCollection(name='2.2i/defaults', type=CollectionType.CHAINED)
+    repo = os.getenv('REPO')
+    if len(sys.argv) > 1:
+        repo = sys.argv[1]
 
+    butler = Butler(repo, writeable='True')
+    parent='2.2i/defaults'
     children = ['LSSTCam-imSim/raw/all', '2.2i/calib', 'skymaps', 'refcats']
-    butler.registry.setCollectionChain(parent='2.2i/defaults', children=children)
+    butler.registry.registerCollection(name=parent, type=CollectionType.CHAINED)
+    butler.registry.setCollectionChain(parent=parent, children=children)
 
 .. todo::
   
