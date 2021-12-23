@@ -366,9 +366,10 @@ We create a chained collection with the Python code below:
     if len(sys.argv) > 1:
         repo = sys.argv[1]
 
-    butler = Butler(repo, writeable='True')
     parent='2.2i/defaults'
     children = ['LSSTCam-imSim/raw/all', '2.2i/calib', 'skymaps', 'refcats']
+
+    butler = Butler(repo, writeable='True')
     butler.registry.registerCollection(name=parent, type=CollectionType.CHAINED)
     butler.registry.setCollectionChain(parent=parent, children=children)
 
