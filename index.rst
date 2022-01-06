@@ -42,32 +42,31 @@
 
 .. sectnum::
 
-.. TODO: Delete the note below before merging new content to the main branch.
-
-.. note::
-
-   **This technote is not yet published.**
-
-   We describe the procedure we followed at FrDF for creating a butler repository from scratch for performing data release processing for the needs of Data Preview 0.2. We include the butler commands used, the scripts which use the butler's Python API as well as the details on the input datasets used for creating the repository.
-
 Introduction
 ============
 
-In this note we document the required input datasets and the procedure we followed at the Rubin French Data Facility (FrDF) for creating a butler repository for performing data release processing for the needs of Data Preview 0.2 :cite:`RTN-001`. We include the butler commands we used, the scripts which use the butler's Python API as well as the details on the datasets used for populating the repository.
+In this note we document the required input datasets and the procedure we followed at the Rubin French Data Facility (FrDF) for creating and populating a butler repository for the image processing needs of Data Preview 0.2 :cite:`RTN-001`.
+
+We include the command line tools and scripts we used as well as the details on the datasets used for populating the repository.
 
 The details for preparing this note were extracted from `PREOPS-711 <https://jira.lsstcorp.org/browse/PREOPS-711>`__.
+
+How to give feedback
+--------------------
+
+If you notice errors in this document or want to help improve it, please feel free to `create an issue <https://github.com/lsst/rtn-029/issues>`__.
 
 Input Datasets
 ==============
 
-For creating this repository we used four kinds of datasets:
+For populating this repository we used four kinds of datasets:
 
 - raw images
 - calibrations
 - reference catalogs
-- sky map
+- skymap
 
-In the subsections below we document the source of each of those datasets and the transformations we applied to them specifically for creating the repository, if any.
+In the subsections below we document the source of each of those datasets and the transformations we applied to them specifically, if any.
 
 Raw images
 ----------
@@ -101,9 +100,10 @@ Those index files can be generated via the `astro_metadata_translator <https://a
     $ astrometadata --packages lsst.obs.lsst write-index --content metadata \
           /sps/lsst/datasets/rubin/previews/dp0.2/raw
 
-The generated index files can be reused at any facility ingesting the same raw images. You can download them at
+The generated index files can be reused at any facility ingesting the same raw images. You can find them at
 
    https://me.lsst.eu/lsstdata/dp02_raw_wfd_indexes.tar.gz (1.5 GB)
+
 
 Calibration data
 ----------------
@@ -115,7 +115,9 @@ Calibration data was extracted from an existing butler repository located at NCS
     # Export of calibration data executed at NCSA
     $ butler export-calibs /repo/dc2 gen3-repo-calibs 2.2i/calib
 
-Note however that for this command to work the `default datastore template <https://github.com/lsst/daf_butler/blob/ac63b1862508ff15b39a6f6be096f4af46b21807/python/lsst/daf/butler/configs/datastores/fileDatastore.yaml#L8>`__ was modified to replace ``detector.full_name`` by ``detector``. 
+.. warning::
+
+  For this command to work the `default datastore template <https://github.com/lsst/daf_butler/blob/ac63b1862508ff15b39a6f6be096f4af46b21807/python/lsst/daf/butler/configs/datastores/fileDatastore.yaml#L8>`__ was modified to replace ``detector.full_name`` by ``detector``. This export issue is being tracked via ticket `DM-32061 <https://jira.lsstcorp.org/browse/DM-32061>`__.
 
 The resulting exported calibration data was transferred and stored FrDF as follows:
 
@@ -143,6 +145,8 @@ The resulting exported calibration data was transferred and stored FrDF as follo
 An archive of the calibration data is available at
 
    https://me.lsst.eu/lsstdata/dp02_calib.tar.gz (136 GB)
+
+See :ref:`import-calibration-data` for details on how we imported this dataset into the repository.
 
 Reference catalogs
 ------------------
@@ -179,10 +183,10 @@ An archive file containing the ``.fits`` files are available at
 
    https://me.lsst.eu/lsstdata/dp02_refcat.tar.gz (1.8 GB).
 
-Sky map
--------
+SkyMap
+------
 
-The sky map configuration file was copied unmodified from `DC2.py <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/config/skymaps/DC2.py>`__ and stored under:
+The skymap configuration file was copied unmodified from `DC2.py <https://github.com/lsst-dm/gen3_shared_repo_admin/blob/master/python/lsst/gen3_shared_repo_admin/config/skymaps/DC2.py>`__ and stored under:
 
 .. code-block:: bash
 
@@ -190,6 +194,7 @@ The sky map configuration file was copied unmodified from `DC2.py <https://githu
     /sps/lsst/datasets/rubin/previews/dp0.2/skymaps
     └── DC2.py
 
+See :ref:`register-sky-map` for details on how we set the repository to use this configuration.
 
 Input datasets layout
 ---------------------
@@ -205,95 +210,120 @@ The four datasets prepared in the previous steps are organized as follows:
     ├── refcats/
     └── skymaps/
 
-Creating the repository
-=======================
+Creating and populating the repository
+======================================
 
-In this section we present the step-by-step procedure we use for creating the repository using release **v23.0.0**.
+In this section we present the step-by-step procedure we use for creating and populating the repository using the `LSST Science Pipelines <https://pipelines.lsst.io>`__ release **v23.0.0**.
 
 For conciseness, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values shown below:
 
 .. prompt:: bash
 
-    export DP02_TOP='/sps/lsst/datasets/rubin/previews/dp0.2'
-    export DP02_CALIB="$DP02_TOP/calib"
-    export DP02_RAW="$DP02_TOP/raw"
-    export DP02_REFCATS="$DP02_TOP/refcats"
-    export DP02_SKYMAP="$DP02_TOP/skymaps"
+    export DP02_TOP_DIR='/sps/lsst/datasets/rubin/previews/dp0.2'
+    export DP02_CALIB="$DP02_TOP_DIR/calib"
+    export DP02_RAW="$DP02_TOP_DIR/raw"
+    export DP02_REFCATS="$DP02_TOP_DIR/refcats"
+    export DP02_SKYMAP="$DP02_TOP_DIR/skymaps"
 
+.. _create-empty-repository:
 
 Create an empty repository
 --------------------------
 
-We use the butler seed configuration file ``butler-dp02.yaml`` to create a butler repo composed of a file-based data store and a PostgreSQL registry database:
+We use the seed configuration file ``dp02-butler-seed.yaml`` shown below to create a butler repository composed of a PostgreSQL registry database and a file-based data store (the default):
 
 .. code-block:: bash
 
-    $ cat butler-dp02.yaml
-    datastore:
-      cls: lsst.daf.butler.datastores.fileDatastore.FileDatastore
+    $ cat dp02-butler-seed.yaml
     registry:
-      db: postgresql://user@host:1234/databasename
+      db: "postgresql://host.example.com:5432/my_database"
+      namespace: "dp02_v23_0_0"
 
-To create an empty repository at location ``$REPO`` we use the command:
+The value associated to the ``db`` key above specifies the URL of the PostgreSQL database we want to use for this repository. The ``namespace`` key  tells the butler to use the `PostgreSQL schema <https://www.postgresql.org/docs/current/ddl-schemas.html>`__ named ``dp02_v23_0_0`` within database ``my_database``.
+
+Connexion details for the registry database server can be provided via a protected file by default located at path ``$HOME/.lsst/db-auth.yaml`` or at a path pointed to by the environment variable ``LSST_DB_AUTH``. The contents of that file is similar to:
+
+.. code-block:: bash
+
+    $ cat $LSST_DB_AUTH
+    - url: "postgresql://host.example.com:5432/my_database"
+      username: "user"
+      password: "secret_password"
+
+Alternative syntax for providing registry database connexion details can be found `here <https://github.com/lsst/daf_butler/blob/main/tests/config/dbAuth/db-auth.yaml>`__.
+
+.. note::
+
+  It is also possible to seed the butler with a data store which exposes other access protocols (e.g. WebDAV or S3). In that case, the seed configuration file needs to be extended to contain also a ``datastore`` entry with a ``root`` key pointing to the top directory of the store, e.g.:
+
+  .. code-block:: bash
+     
+      datastore:
+        root: "https://webdav.example.com:1234/path/to/root/dir"
+
+  See also the `butler datastore configuration <https://pipelines.lsst.io/v/weekly/modules/lsst.daf.butler/datastores.html>`__ document for details on more configuration options.
+
+See also `Configuring a Butler <https://pipelines.lsst.io/v/weekly/modules/lsst.daf.butler/configuring.html>`__ for additional configuration details.
+
+To create the repository at location ``$REPO`` we use the command:
 
 .. prompt:: bash
 
-    butler create --seed-config butler-dp02.yaml --override $REPO
+    butler create --seed-config dp02-butler-seed.yaml --override $REPO
 
-Import calibration data
------------------------
-
-.. prompt:: bash
-
-    butler import --export-file "$DP02_CALIB/export.yaml" $REPO $DP02_CALIB
-
-For this repository, importing calibration data needs to be performed before registering instruments (see below), otherwise an error is produced.
+.. _register-instrument:
 
 Register instrument
 -------------------
 
-To register the instrument for this repository we use:
+To register the instrument for this repository we use the command below:
 
 .. prompt:: bash
 
-    butler register-instrument $REPO lsst.obs.lsst.LsstCamImSim
+    butler register-instrument $REPO 'lsst.obs.lsst.LsstCamImSim'
 
-.. todo::
-  
-    Do we also need to register instrument ``lsst.obs.lsst.LsstCamPhoSim`` ? If we don't register it and we import calibration data *after* registering only ``lsst.obs.lsst.LsstCamImSim`` we get the error below:
+.. _import-calibration-data:
 
-    .. code-block:: bash
+Import calibration data
+-----------------------
 
-       sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: instrument.name
-       [SQL: INSERT INTO instrument (name, visit_max, exposure_max, detector_max, class_name) VALUES (?, ?, ?, ?, ?)]
-       [parameters: ('LSSTCam-imSim', 9999999, 9999999, 1000, 'lsst.obs.lsst.LsstCamImSim')]
-       (Background on this error at: https://sqlalche.me/e/14/gkpj)
+To import the calibration data we use the command below:
+
+.. prompt:: bash
+
+    butler import --export-file "$DP02_CALIB/export.yaml" \
+       --skip-dimensions instrument,detector,physical_filter,band $REPO $DP02_CALIB
+
+Note that it is possible to add option ``--transfer direct`` to this command to avoid copying or creating symbolic links to the calibration files within the repository's data store.
+
+.. _add-instrument-calibrations:
 
 Add instrument's curated calibrations
 -------------------------------------
 
-To include in the repo the known calibration data for instrument ``LSSTCam-imSim`` we do:
+To ingest the known calibration data for instrument ``LSSTCam-imSim`` we use the command below:
 
 .. prompt:: bash
 
     butler write-curated-calibrations $REPO 'LSSTCam-imSim'
 
-Register sky map
+.. _register-sky-map:
+
+Register SkyMap
 ----------------
 
-To register in the repo the sky map confifuration we do:
+To register the skymap configuration we use the command below:
 
 .. prompt:: bash
 
-    butler register-skymap -C "$DP02_SKYMAP/DC2.py" $REPO
-
+    butler register-skymap --config-file "$DP02_SKYMAP/DC2.py" $REPO
 
 .. _ingest-reference-catalog-data:
 
 Ingest reference catalog data
 -----------------------------
 
-Ingestion of reference catalogs requires that an `Astropy table <https://docs.astropy.org/en/stable/api/astropy.table.Table.html>`__ associating each file path of the reference catalog and its dimension be provided. We use the script below to create that table and store it in file ``refcat.ecsv``.
+Ingestion of reference catalogs requires an `Astropy table <https://docs.astropy.org/en/stable/api/astropy.table.Table.html>`__ associating each file path of the reference catalog and its dimension. We use the script below to create that table and store it in file ``refcat.ecsv``.
 
 .. code-block:: python
 
@@ -330,9 +360,11 @@ An excerpt of the contents of the generated table file is shown below:
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/141991.fits 141991
     /sps/lsst/datasets/rubin/previews/dp0.2/refcats/cal_ref_cat/146919.fits 146919
 
-The generated table file is available at https://me.lsst.eu/lsstdata/dp02_refcat.ecsv.tar.gz (7.8 KB).
+The generated table file is available at
 
-Register and ingest reference catalogs data:
+   https://me.lsst.eu/lsstdata/dp02_refcat.ecsv.tar.gz (7.8 KB)
+
+To register and ingest reference catalog data we use the commands below:
 
 .. code-block:: bash
 
@@ -359,43 +391,30 @@ Note that there are many ways to perform the ingestion of raws concurrently, for
     
     butler ingest-raws --transfer direct -j 16 $REPO $DP0_RAW/y1-wfd
 
-At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying raw exposure data to the repository location.
+At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying (or symlinking) raw exposure data to the repository location.
+
+.. _define-visits:
 
 Define visits
 -------------
 
-Define visits from the exposures already present in the repository in collection ``LSSTCam-imSim/raw/all`` for instrument ``LSSTCam-imSim``:
+To define visits from the exposures previously ingested into the repository in collection ``LSSTCam-imSim/raw/all`` for instrument ``LSSTCam-imSim`` we use the command below:
 
 .. prompt:: bash
     
     butler define-visits --collections 'LSSTCam-imSim/raw/all' $REPO 'LSSTCam-imSim'
 
-Creating collections
---------------------
+.. _create-collections:
 
-We create a chained collection with the Python code below:
+Create collections
+------------------
 
-.. code-block:: python
+In accordance to the conventions for organizing data repositories described in `DMTN-167 <https://dmtn-167.lsst.io>`__, we create a chained collection with parent ``2.2i/defaults`` and children ``LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats`` using the command below:
 
-    #!/usr/bin/env python
-    import os
-    import sys
-    from lsst.daf.butler import Butler, CollectionType
+.. prompt:: bash
 
-    repo = os.getenv('REPO')
-    if len(sys.argv) > 1:
-        repo = sys.argv[1]
-
-    parent = '2.2i/defaults'
-    children = ['LSSTCam-imSim/raw/all', '2.2i/calib', 'skymaps', 'refcats']
-
-    butler = Butler(repo, writeable='True')
-    butler.registry.registerCollection(name=parent, type=CollectionType.CHAINED)
-    butler.registry.setCollectionChain(parent=parent, children=children)
-
-.. todo::
-  
-    Add a sentence on why creating this chain is needed / desirable / convenient
+    butler collection-chain $REPO '2.2i/defaults' \
+       'LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats'
 
 
 .. Add content here.
