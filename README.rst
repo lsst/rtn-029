@@ -7,14 +7,14 @@
   .. image:: https://zenodo.org/badge/doi/10.5281/zenodo.#####.svg
      :target: http://dx.doi.org/10.5281/zenodo.#####
 
-###########################################################################################################################
-Procedure for creating a butler repository from scratch for performing data release processing for Data Preview 0.2 at FrDF
-###########################################################################################################################
+#######################################################################
+Procedure for creating a butler repository at FrDF for Data Preview 0.2
+#######################################################################
 
 RTN-029
 =======
 
-We describe the procedure we followed at FrDF for creating a butler repository from scratch for performing data release processing for the needs of Data Preview 0.2. We include the butler commands used, the scripts which use the butler's Python API as well as the details on the input datasets used for creating the repository.
+We describe the procedure we followed at the Rubin French Data Facility for creating a butler repository for Data Preview 0.2. We include the butler commands used, the scripts which use the butler's Python API as well as the details on the input datasets used for creating the repository.
 
 **Links:**
 
