@@ -59,14 +59,15 @@ If you notice errors in this document or want to help improve it, please feel fr
 Input Datasets
 ==============
 
-For populating this repository we used four kinds of datasets:
+For populating this repository we used the kinds of datasets below:
 
 - raw images
 - calibrations
 - reference catalogs
 - skymap
+- truth summary
 
-In the subsections below we document the source of each of those datasets and the transformations we applied to them specifically, if any.
+In the subsections below we document the source of each of those dataset kinds and the transformations we applied to them specifically, if any.
 
 Raw images
 ----------
@@ -196,34 +197,84 @@ The skymap configuration file was copied unmodified from `DC2.py <https://github
 
 See :ref:`register-sky-map` for details on how we set the repository to use this configuration.
 
+Truth summary
+-------------
+
+The DESC DC2 truth summary tables need to be present in the butler repository so that they can be used in pipeline tasks. More context on the motivation to include this dataset into the repository can be found in issue `DM-32895 <https://jira.lsstcorp.org/browse/DM-32895>`_.
+
+The 166 files (aggregated volume 63 GB) are located under 
+
+.. code-block:: none
+
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_parquet
+
+They are named like ``truth_patchint_tract<NNNN>.parq`` where ``<NNNN>`` is the identifier of a tract (e.g. ``truth_patchint_tract4643.parq``). Those files were imported unmodified to FrDF from NCSA. Their original location at NCSA was the directory
+
+.. code-block:: bash
+
+    # Location at NCSA of parquet files
+    /project/shared/DC2/truth_parquet
+
+
+The file 
+
+.. code-block:: none
+
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_tables.csv
+    
+contains a table necessary for ingestion into a butler repository. An excerpt of its contents is shown below:
+
+.. code-block:: bash
+
+    $ head -5 /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_tables.csv 
+    file URI,skymap,tract
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_parquet/truth_patchint_tract3449.parq,DC2,3449
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_parquet/truth_patchint_tract3832.parq,DC2,3832
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_parquet/truth_patchint_tract4433.parq,DC2,4433
+    /sps/lsst/datasets/rubin/previews/dp0.2/truth_summary/truth_parquet/truth_patchint_tract3080.parq,DC2,3080
+
+That file was adapted from the original at NCSA so that the file paths reflect the location of those files at FrDF. The original file was located at NCSA at the location below:
+
+.. code-block:: bash
+
+    # Location at NCSA of truth summary table file
+    /project/shared/DC2/truth_tables.csv 
+
+See :ref:`ingest-truth` for details on how we ingest this dataset into the repository
+
+
 Input datasets layout
 ---------------------
 
-The four datasets prepared in the previous steps are organized as follows:
+The datasets prepared in the previous steps are organized as follows:
 
 .. code-block:: bash
 
     $ tree -L 1 -F /sps/lsst/datasets/rubin/previews/dp0.2
     /sps/lsst/datasets/rubin/previews/dp0.2
-    ├── calib/
-    ├── raw/
-    ├── refcats/
-    └── skymaps/
+    |-- calib/
+    |-- raw/
+    |-- refcats/
+    |-- skymaps/
+    `-- truth_summary/
+
 
 Creating and populating the repository
 ======================================
 
-In this section we present the step-by-step procedure we use for creating and populating the repository using the `LSST Science Pipelines <https://pipelines.lsst.io>`__ release **v23.0.0**.
+In this section we present the step-by-step procedure we use for creating and populating the repository using the `LSST Science Pipelines <https://pipelines.lsst.io>`__ releases in the series **v23.0.x**.
 
 For conciseness, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values shown below:
 
 .. prompt:: bash
 
+    export REPO='/path/to/the/desired/location/of/butler/repository'
     export DP02_TOP_DIR='/sps/lsst/datasets/rubin/previews/dp0.2'
     export DP02_CALIB="$DP02_TOP_DIR/calib"
     export DP02_RAW="$DP02_TOP_DIR/raw"
     export DP02_REFCATS="$DP02_TOP_DIR/refcats"
     export DP02_SKYMAP="$DP02_TOP_DIR/skymaps"
+    export DP02_TRUTH_SUMMARY="$DP02_TOP_DIR/truth_summary"
 
 .. _create-empty-repository:
 
@@ -404,17 +455,210 @@ To define visits from the exposures previously ingested into the repository in c
     
     butler define-visits --collections 'LSSTCam-imSim/raw/all' $REPO 'LSSTCam-imSim'
 
+.. _ingest-truth:
+
+Ingest truth summary data
+-------------------------
+
+To register the dataset type named ``truth_summary`` with storage class ``DataFrame`` and dimensions ``skymap`` and ``tract`` we used the command:
+
+.. prompt:: bash
+    
+    butler register-dataset-type $REPO 'truth_summary' DataFrame skymap tract
+
+To ingest the files of dataset type ``truth_summary`` registered aboce into run ``2.2i/truth_summary`` using the contents of table file ``$DP02_TRUTH_SUMMARY/truth_tables.csv``:
+
+.. prompt:: bash
+
+    butler ingest-files --transfer direct $REPO 'truth_summary' '2.2i/truth_summary' \
+        $DP02_TRUTH_SUMMARY/truth_tables.csv
+
+Information on how to ingest this dataset into the butler repository was extracted from `PREOPS-584 <https://jira.lsstcorp.org/browse/PREOPS-584>`_.
+
+
 .. _create-collections:
 
 Create collections
 ------------------
 
-In accordance to the conventions for organizing data repositories described in `DMTN-167 <https://dmtn-167.lsst.io>`__, we create a chained collection with parent ``2.2i/defaults`` and children ``LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats`` using the command below:
+In accordance to the conventions for organizing data repositories described in `DMTN-167 <https://dmtn-167.lsst.io>`__, we create a chained collection with parent ``2.2i/defaults`` and children ``LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats,2.2i/truth_summary`` using the command below:
 
 .. prompt:: bash
 
     butler collection-chain $REPO '2.2i/defaults' \
-       'LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats'
+       'LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats,2.2i/truth_summary'
+
+
+Inspecting the repository
+=========================
+
+In this section we present some mechanisms to inspect the contents of the created repository using the `butler command line interface <https://pipelines.lsst.io/modules/lsst.daf.butler/scripts/butler.html>`_. It is also possible to inspect the repository using the `Butler Python API <https://pipelines.lsst.io/py-api/lsst.daf.butler.Butler.html>`_ (see for instance the `Introduction to the LSST data Butler <https://github.com/rubin-dp0/tutorial-notebooks/blob/main/04_Intro_to_Butler.ipynb>`_ notebook of the `DP0.1 Tutorials <https://dp0-1.lsst.io/tutorials-examples/index.html>`_ series.)
+
+Collections
+-----------
+
+.. code-block:: bash
+
+    $ butler query-collections --chains 'TREE' $REPO
+                        Name                         Type   
+    -------------------------------------------- -----------
+    2.2i/calib/DM-30694/curated/19700101T000000Z RUN        
+    2.2i/calib/DM-30694/unbounded                RUN        
+    2.2i/calib/gen2/20220101T000000Z             RUN        
+    2.2i/calib/gen2/20220806T000000Z             RUN        
+    2.2i/calib/gen2/20231201T000000Z             RUN        
+    2.2i/calib/DM-30694                          CALIBRATION
+    2.2i/calib/gen2                              CALIBRATION
+    2.2i/calib                                   CHAINED    
+      2.2i/calib/DM-30694                        CALIBRATION
+      2.2i/calib/gen2                            CALIBRATION
+      2.2i/calib/DM-30694/unbounded              RUN        
+    LSSTCam-imSim/calib                          CALIBRATION
+    LSSTCam-imSim/calib/unbounded                RUN        
+    LSSTCam-imSim/calib/curated/19700101T000000Z RUN        
+    skymaps                                      RUN        
+    refcats                                      RUN        
+    LSSTCam-imSim/raw/all                        RUN        
+    2.2i/truth_summary                           RUN        
+    2.2i/defaults                                CHAINED    
+      LSSTCam-imSim/raw/all                      RUN        
+      2.2i/calib                                 CHAINED    
+        2.2i/calib/DM-30694                      CALIBRATION
+        2.2i/calib/gen2                          CALIBRATION
+        2.2i/calib/DM-30694/unbounded            RUN        
+      skymaps                                    RUN        
+      refcats                                    RUN        
+      2.2i/truth_summary                         RUN        
+
+
+Dataset types
+-------------
+
+.. code-block:: bash
+
+    $ butler query-dataset-types --verbose $REPO
+          name                                  dimensions                               storage class    
+    --------------- ----------------------------------------------------------------- --------------------
+                bfk                                        ['instrument', 'detector'] BrighterFatterKernel
+               bias                                        ['instrument', 'detector']            ExposureF
+    cal_ref_cat_2_2                                                          ['htm7']        SimpleCatalog
+             camera                                                    ['instrument']               Camera
+               dark                                        ['instrument', 'detector']            ExposureF
+               flat             ['band', 'instrument', 'detector', 'physical_filter']            ExposureF
+                raw ['band', 'instrument', 'detector', 'physical_filter', 'exposure']             Exposure
+                sky             ['band', 'instrument', 'detector', 'physical_filter']            ExposureF
+             skyMap                                                        ['skymap']               SkyMap
+      truth_summary                                               ['skymap', 'tract']            DataFrame
+
+
+Datasets
+--------
+
+The ``butler query-datasets`` command displays detailed information of which we only present some excerpts (noted by the presence of the ``...`` in the command output displayed).
+
+.. code-block:: bash
+
+    $ butler query-datasets $REPO
+
+    type                     run                                       id                    instrument  detector
+    ---- -------------------------------------------- ------------------------------------ ------------- --------
+     bfk 2.2i/calib/DM-30694/curated/19700101T000000Z 10fe0425-6d33-4f9a-8487-bb505e478906 LSSTCam-imSim        0
+     bfk 2.2i/calib/DM-30694/curated/19700101T000000Z 9634f25b-0421-414c-9a80-0206662ba573 LSSTCam-imSim        1
+     bfk 2.2i/calib/DM-30694/curated/19700101T000000Z 2976df15-6233-4c8a-8911-a4fa107d0c45 LSSTCam-imSim        2
+    ...
+
+    type               run                                 id                    instrument  detector
+    ---- -------------------------------- ------------------------------------ ------------- --------
+    bias 2.2i/calib/gen2/20220101T000000Z 908f0761-f114-4d93-8c61-ef2913ddc0ee LSSTCam-imSim        0
+    bias 2.2i/calib/gen2/20220101T000000Z edec132e-77ee-48e7-a0ff-eb6f107b7825 LSSTCam-imSim        1
+    bias 2.2i/calib/gen2/20220101T000000Z 9519e665-c0da-4196-a3d1-c3a276ae602f LSSTCam-imSim        2
+    ...
+
+     type               run                               id                    instrument 
+    ------ ----------------------------- ------------------------------------ -------------
+    camera 2.2i/calib/DM-30694/unbounded b7e109f0-764c-492a-9cfc-04471a7171e3 LSSTCam-imSim
+    camera LSSTCam-imSim/calib/unbounded 35c4bcc2-6f58-4e21-8a43-68fd775bbb06 LSSTCam-imSim
+
+    type               run                                 id                    instrument  detector
+    ---- -------------------------------- ------------------------------------ ------------- --------
+    dark 2.2i/calib/gen2/20220101T000000Z c129b82b-02ea-4158-9166-6a0bbbc9eb12 LSSTCam-imSim        0
+    dark 2.2i/calib/gen2/20220101T000000Z 22cf0a75-a29e-4bc9-9b91-9a4cafc90873 LSSTCam-imSim        1
+    dark 2.2i/calib/gen2/20220101T000000Z 8101186b-b7ac-43f1-8112-b6b1e611bdcc LSSTCam-imSim        2
+    ...
+
+    type               run                                 id                  band   instrument  detector physical_filter
+    ---- -------------------------------- ------------------------------------ ---- ------------- -------- ---------------
+    flat 2.2i/calib/gen2/20220806T000000Z c8569842-4445-449a-90ea-c1ad341cf021    g LSSTCam-imSim        0       g_sim_1.4
+    flat 2.2i/calib/gen2/20220806T000000Z a2bf9feb-b11e-43a0-882d-27f3c7870d0c    g LSSTCam-imSim        1       g_sim_1.4
+    flat 2.2i/calib/gen2/20220806T000000Z f3021e4e-2d62-4691-8ad4-d789baaad27c    g LSSTCam-imSim        2       g_sim_1.4
+    ...
+
+    type               run                                 id                  band   instrument  detector physical_filter
+    ---- -------------------------------- ------------------------------------ ---- ------------- -------- ---------------
+     sky 2.2i/calib/gen2/20231201T000000Z 0d857fec-47be-40bf-bc07-518d13ebb19e    g LSSTCam-imSim        0       g_sim_1.4
+     sky 2.2i/calib/gen2/20231201T000000Z 5a9fd70a-df96-436c-8cf9-82978e8d9023    g LSSTCam-imSim        1       g_sim_1.4
+     sky 2.2i/calib/gen2/20231201T000000Z a13b6071-369b-4735-b724-244f387d0edc    g LSSTCam-imSim        2       g_sim_1.4
+    ...
+
+     type    run                    id                  skymap
+    ------ ------- ------------------------------------ ------
+    skyMap skymaps 7e392c32-2615-4249-8cd2-d40976ebda45    DC2
+
+          type        run                    id                   htm7 
+    --------------- ------- ------------------------------------ ------
+    cal_ref_cat_2_2 refcats c05fa183-bb30-47a1-a859-339629255f4e 141440
+    cal_ref_cat_2_2 refcats 49d3511b-d7dd-4001-9fe7-17471cefe6b2 141443
+    cal_ref_cat_2_2 refcats e6265445-320f-4949-b7f9-99e0fe139b9f 141825
+    ...
+
+    type          run                           id                  band   instrument  detector physical_filter exposure
+    ---- --------------------- ------------------------------------ ---- ------------- -------- --------------- --------
+     raw LSSTCam-imSim/raw/all 8caedfed-a9ae-51e0-845a-0b3db1caeb72    i LSSTCam-imSim       19       i_sim_1.4   731614
+     raw LSSTCam-imSim/raw/all 88a99f3d-b4f6-5886-842f-be0267cf6ef3    i LSSTCam-imSim       20       i_sim_1.4   731614
+     raw LSSTCam-imSim/raw/all 2cb30d02-e0c3-5e27-ad85-0473e62ad3dd    i LSSTCam-imSim       21       i_sim_1.4   731614
+    ...
+
+         type            run                          id                  skymap tract
+    ------------- ------------------ ------------------------------------ ------ -----
+    truth_summary 2.2i/truth_summary a9d4e854-41fd-4274-a665-ceb02b1b1aa5    DC2  2723
+    truth_summary 2.2i/truth_summary 26dab1ba-9d85-4b13-aa8d-88dee400b25e    DC2  2724
+    truth_summary 2.2i/truth_summary a2de4b8a-efc7-4289-8e42-4d5472d6ba39    DC2  2725
+    ...
+
+
+Dimension records
+-----------------
+
+The ``butler query-dimension-records`` command displays detailed information of which we only present some excerpts (noted by the presence of the ``...`` in the command output displayed).
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'detector'
+      instrument   id full_name name_in_raft raft purpose
+    ------------- --- --------- ------------ ---- -------
+    LSSTCam-imSim   0   R01_S00          S00  R01 SCIENCE
+    LSSTCam-imSim   1   R01_S01          S01  R01 SCIENCE
+    LSSTCam-imSim   2   R01_S02          S02  R01 SCIENCE
+    ...
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'instrument'
+         name     visit_max exposure_max detector_max         class_name        
+    ------------- --------- ------------ ------------ --------------------------
+    LSSTCam-imSim   9999999      9999999         1000 lsst.obs.lsst.LsstCamImSim
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'physical_filter'
+      instrument     name   band
+    ------------- --------- ----
+    LSSTCam-imSim g_sim_1.4    g
+    LSSTCam-imSim i_sim_1.4    i
+    LSSTCam-imSim r_sim_1.4    r
+    LSSTCam-imSim u_sim_1.4    u
+    LSSTCam-imSim y_sim_1.4    y
+    LSSTCam-imSim z_sim_1.4    z
 
 
 .. Add content here.
