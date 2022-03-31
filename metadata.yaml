@@ -40,7 +40,7 @@ authors:
 # doi: 10.5281/zenodo.#####
 
 # Copyright statement
-copyright: "2021, IN2P3 / CNRS computing centre (CC-IN2P3)"
+copyright: "2021-2022, IN2P3 / CNRS computing centre (CC-IN2P3)"
 
 # Description. A short, 1-2 sentence statemement used by document indices.
 description: "We describe the procedure we followed at the Rubin French Data Facility for creating a butler repository for Data Preview 0.2. We include the butler commands used, the scripts which use the butler's Python API as well as the details on the input datasets used for creating the repository."
