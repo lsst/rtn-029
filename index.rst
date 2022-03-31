@@ -45,7 +45,7 @@
 Introduction
 ============
 
-In this note we document the required input datasets and the procedure we followed at the Rubin French Data Facility (FrDF) for creating and populating a butler repository for the image processing needs of Data Preview 0.2 :cite:`RTN-001`.
+In this note we document the required input datasets and the procedure we followed at the Rubin French Data Facility (FrDF) for creating and populating a butler repository for the needs of image processing for preparing Data Preview 0.2 :cite:`RTN-001`.
 
 We include the command line tools and scripts we used as well as the details on the datasets used for populating the repository.
 
@@ -59,7 +59,7 @@ If you notice errors in this document or want to help improve it, please feel fr
 Input Datasets
 ==============
 
-For populating this repository we used the kinds of datasets below:
+For populating this repository we used the dataset types listed below:
 
 - raw images
 - calibrations
@@ -67,7 +67,7 @@ For populating this repository we used the kinds of datasets below:
 - skymap
 - truth summary
 
-In the subsections below we document the source of each of those dataset kinds and the transformations we applied to them specifically, if any.
+In the following subsections we document the source of each of those dataset types and the transformations we applied for ingesting them into the repository.
 
 Raw images
 ----------
@@ -240,8 +240,11 @@ That file was adapted from the original at NCSA so that the file paths reflect t
     # Location at NCSA of truth summary table file
     /project/shared/DC2/truth_tables.csv 
 
-See :ref:`ingest-truth` for details on how we ingest this dataset into the repository
+See :ref:`ingest-truth` for details on how we ingest this dataset into the repository.
 
+An archive of the truth summary dataset is available at
+
+   https://me.lsst.eu/lsstdata/dp02_truth_summary.tar (63 GB)
 
 Input datasets layout
 ---------------------
@@ -264,7 +267,7 @@ Creating and populating the repository
 
 In this section we present the step-by-step procedure we use for creating and populating the repository using the `LSST Science Pipelines <https://pipelines.lsst.io>`__ releases in the series **v23.0.x**.
 
-For conciseness, hereafter we refer to the location of the repository the via the environment variable ``$REPO``. In addition, we use some environment variables which have the values shown below:
+For conciseness, hereafter we refer to the location of the repository the via the environment variable ``$REPO`` and we use environment variables to refer to the location of the input datasets. Those variables have the values shown below:
 
 .. prompt:: bash
 
@@ -275,6 +278,7 @@ For conciseness, hereafter we refer to the location of the repository the via th
     export DP02_REFCATS="$DP02_TOP_DIR/refcats"
     export DP02_SKYMAP="$DP02_TOP_DIR/skymaps"
     export DP02_TRUTH_SUMMARY="$DP02_TOP_DIR/truth_summary"
+
 
 .. _create-empty-repository:
 
@@ -290,7 +294,7 @@ We use the seed configuration file ``dp02-butler-seed.yaml`` shown below to crea
       db: "postgresql://host.example.com:5432/my_database"
       namespace: "dp02_v23_0_0"
 
-The value associated to the ``db`` key above specifies the URL of the PostgreSQL database we want to use for this repository. The ``namespace`` key  tells the butler to use the `PostgreSQL schema <https://www.postgresql.org/docs/current/ddl-schemas.html>`__ named ``dp02_v23_0_0`` within database ``my_database``.
+The value associated to the ``db`` key above specifies the URL of the PostgreSQL database we want to use for this repository. The ``namespace`` key tells the butler to use the `PostgreSQL schema <https://www.postgresql.org/docs/current/ddl-schemas.html>`__ named ``dp02_v23_0_0`` within database ``my_database``.
 
 Connexion details for the registry database server can be provided via a protected file by default located at path ``$HOME/.lsst/db-auth.yaml`` or at a path pointed to by the environment variable ``LSST_DB_AUTH``. The contents of that file is similar to:
 
@@ -335,15 +339,15 @@ To register the instrument for this repository we use the command below:
 
 .. _import-calibration-data:
 
-Import calibration data
+Ingest calibration data
 -----------------------
 
-To import the calibration data we use the command below:
+To ingest calibration data we use the command below:
 
 .. prompt:: bash
 
     butler import --export-file "$DP02_CALIB/export.yaml" \
-       --skip-dimensions instrument,detector,physical_filter,band $REPO $DP02_CALIB
+       --skip-dimensions 'instrument,detector,physical_filter,band' $REPO  $DP02_CALIB
 
 Note that it is possible to add option ``--transfer direct`` to this command to avoid copying or creating symbolic links to the calibration files within the repository's data store.
 
@@ -397,7 +401,7 @@ Ingestion of reference catalogs requires an `Astropy table <https://docs.astropy
 
 An excerpt of the contents of the generated table file is shown below:
 
-.. code-block:: none
+.. code-block:: bash
 
     $ head -10 refcat.ecsv 
     # %ECSV 1.0
@@ -420,7 +424,7 @@ To register and ingest reference catalog data we use the commands below:
 .. code-block:: bash
 
     # Register reference catalog data with dataset type 'cal_ref_cat_2_2',
-    # storage class 'SimpleCatalog' and dimensions 'htm7'
+    # storage class 'SimpleCatalog' and dimension 'htm7'
     $ butler register-dataset-type $REPO cal_ref_cat_2_2 SimpleCatalog htm7
 
     # Ingest dataset of type 'cal_ref_cat_2_2' into run 'refcats' using information
@@ -431,6 +435,8 @@ To register and ingest reference catalog data we use the commands below:
 
 Ingest raw exposures
 --------------------
+
+To ingest raw exposures we use the command:
 
 .. prompt:: bash
     
@@ -444,6 +450,7 @@ Note that there are many ways to perform the ingestion of raws concurrently, for
 
 At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying (or symlinking) raw exposure data to the repository location.
 
+
 .. _define-visits:
 
 Define visits
@@ -455,25 +462,26 @@ To define visits from the exposures previously ingested into the repository in c
     
     butler define-visits --collections 'LSSTCam-imSim/raw/all' $REPO 'LSSTCam-imSim'
 
+
 .. _ingest-truth:
 
 Ingest truth summary data
 -------------------------
 
-To register the dataset type named ``truth_summary`` with storage class ``DataFrame`` and dimensions ``skymap`` and ``tract`` we used the command:
+To register the dataset type named ``truth_summary`` with storage class ``DataFrame`` and dimensions ``skymap`` and ``tract`` we use the command:
 
 .. prompt:: bash
     
     butler register-dataset-type $REPO 'truth_summary' DataFrame skymap tract
 
-To ingest the files of dataset type ``truth_summary`` registered aboce into run ``2.2i/truth_summary`` using the contents of table file ``$DP02_TRUTH_SUMMARY/truth_tables.csv``:
+To ingest the files of dataset type ``truth_summary`` registered above into run ``2.2i/truth_summary`` using the contents of table file ``$DP02_TRUTH_SUMMARY/truth_tables.csv`` we used the command:
 
 .. prompt:: bash
 
     butler ingest-files --transfer direct $REPO 'truth_summary' '2.2i/truth_summary' \
         $DP02_TRUTH_SUMMARY/truth_tables.csv
 
-Information on how to ingest this dataset into the butler repository was extracted from `PREOPS-584 <https://jira.lsstcorp.org/browse/PREOPS-584>`_.
+Details on how to ingest this dataset into the butler repository were extracted from `PREOPS-584 <https://jira.lsstcorp.org/browse/PREOPS-584>`_.
 
 
 .. _create-collections:
@@ -481,12 +489,13 @@ Information on how to ingest this dataset into the butler repository was extract
 Create collections
 ------------------
 
-In accordance to the conventions for organizing data repositories described in `DMTN-167 <https://dmtn-167.lsst.io>`__, we create a chained collection with parent ``2.2i/defaults`` and children ``LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats,2.2i/truth_summary`` using the command below:
+In accordance to the conventions for organizing data repositories described in `DMTN-167 <https://dmtn-167.lsst.io>`__, we create a chained collection with parent ``2.2i/defaults`` and children collections ``LSSTCam-imSim/raw/all``, ``2.2i/calib``, ``skymaps``, ``refcats,2.2i/truth_summary`` using the command below:
 
 .. prompt:: bash
 
     butler collection-chain $REPO '2.2i/defaults' \
        'LSSTCam-imSim/raw/all,2.2i/calib,skymaps,refcats,2.2i/truth_summary'
+
 
 
 Inspecting the repository
@@ -551,10 +560,45 @@ Dataset types
       truth_summary                                               ['skymap', 'tract']            DataFrame
 
 
+Dimension records
+-----------------
+
+The command ``butler query-dimension-records`` displays detailed information of which we only present some excerpts noted by the presence of the ``...`` in the command's output.
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'detector'
+      instrument   id full_name name_in_raft raft purpose
+    ------------- --- --------- ------------ ---- -------
+    LSSTCam-imSim   0   R01_S00          S00  R01 SCIENCE
+    LSSTCam-imSim   1   R01_S01          S01  R01 SCIENCE
+    LSSTCam-imSim   2   R01_S02          S02  R01 SCIENCE
+    ...
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'instrument'
+         name     visit_max exposure_max detector_max         class_name        
+    ------------- --------- ------------ ------------ --------------------------
+    LSSTCam-imSim   9999999      9999999         1000 lsst.obs.lsst.LsstCamImSim
+
+.. code-block:: bash
+
+    $ butler query-dimension-records $REPO 'physical_filter'
+      instrument     name   band
+    ------------- --------- ----
+    LSSTCam-imSim g_sim_1.4    g
+    LSSTCam-imSim i_sim_1.4    i
+    LSSTCam-imSim r_sim_1.4    r
+    LSSTCam-imSim u_sim_1.4    u
+    LSSTCam-imSim y_sim_1.4    y
+    LSSTCam-imSim z_sim_1.4    z
+
+
 Datasets
 --------
 
-The ``butler query-datasets`` command displays detailed information of which we only present some excerpts (noted by the presence of the ``...`` in the command output displayed).
+The command ``butler query-datasets`` displays detailed information of which we only present some excerpts noted by the presence of the ``...`` in the command's output.
 
 .. code-block:: bash
 
@@ -625,40 +669,6 @@ The ``butler query-datasets`` command displays detailed information of which we 
     truth_summary 2.2i/truth_summary a2de4b8a-efc7-4289-8e42-4d5472d6ba39    DC2  2725
     ...
 
-
-Dimension records
------------------
-
-The ``butler query-dimension-records`` command displays detailed information of which we only present some excerpts (noted by the presence of the ``...`` in the command output displayed).
-
-.. code-block:: bash
-
-    $ butler query-dimension-records $REPO 'detector'
-      instrument   id full_name name_in_raft raft purpose
-    ------------- --- --------- ------------ ---- -------
-    LSSTCam-imSim   0   R01_S00          S00  R01 SCIENCE
-    LSSTCam-imSim   1   R01_S01          S01  R01 SCIENCE
-    LSSTCam-imSim   2   R01_S02          S02  R01 SCIENCE
-    ...
-
-.. code-block:: bash
-
-    $ butler query-dimension-records $REPO 'instrument'
-         name     visit_max exposure_max detector_max         class_name        
-    ------------- --------- ------------ ------------ --------------------------
-    LSSTCam-imSim   9999999      9999999         1000 lsst.obs.lsst.LsstCamImSim
-
-.. code-block:: bash
-
-    $ butler query-dimension-records $REPO 'physical_filter'
-      instrument     name   band
-    ------------- --------- ----
-    LSSTCam-imSim g_sim_1.4    g
-    LSSTCam-imSim i_sim_1.4    i
-    LSSTCam-imSim r_sim_1.4    r
-    LSSTCam-imSim u_sim_1.4    u
-    LSSTCam-imSim y_sim_1.4    y
-    LSSTCam-imSim z_sim_1.4    z
 
 
 .. Add content here.
