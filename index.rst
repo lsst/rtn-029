@@ -429,7 +429,7 @@ To register and ingest reference catalog data we use the commands below:
 
     # Ingest dataset of type 'cal_ref_cat_2_2' into run 'refcats' using information
     # (e.g. paths, dimensions) present in table 'refcat.ecsv'
-    $ butler ingest-files --transfer direct $REPO cal_ref_cat_2_2 refcats refcat.ecsv
+    $ butler ingest-files --transfer direct $REPO cal_ref_cat_2_2 refcats $DP02_REFCATS/refcat.ecsv
 
 .. _ingest-raw-exposures:
 
@@ -440,13 +440,13 @@ To ingest raw exposures we use the command:
 
 .. prompt:: bash
     
-    butler ingest-raws --transfer direct $REPO $DP0_RAW/y{1..5}-wfd
+    butler ingest-raws --transfer direct $REPO $DP02_RAW/y{1..5}-wfd
 
-Note that there are many ways to perform the ingestion of raws concurrently, for instance launching an ingestion command per year and by specifying the number of processes to use for each command, such as:
+Note that there are many ways to perform the ingestion of raws concurrently, for instance by launching an ingestion command per year and by specifying the number of processes to use for each command, such as:
 
 .. prompt:: bash
     
-    butler ingest-raws --transfer direct -j 16 $REPO $DP0_RAW/y1-wfd
+    butler ingest-raws --transfer direct --processes 16 $REPO $DP02_RAW/y1-wfd
 
 At FrDF we use ingestion in place via the option ``--transfer direct`` to avoid copying (or symlinking) raw exposure data to the repository location.
 
